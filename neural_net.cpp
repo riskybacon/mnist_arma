@@ -1,7 +1,10 @@
+#include <algorithm>
+#include <random>
+#include <vector>
+#include <numeric>
+
 #include "neural_net.hpp"
 #include "png_weight.hpp"
-
-//using namespace arma;
 
 using arma::randu;
 using arma::ones;
@@ -14,7 +17,7 @@ neural_net::neural_net(const mnist& input_, elem_t lambda_)
   lambda(lambda_) {
 
     elem_t epsilon = 0.12;
-    theta1 = (randu(25, input.images.n_cols + 1) * 2 - 1) * epsilon;
+    theta1 = (randu(64, input.images.n_cols + 1) * 2 - 1) * epsilon;
     theta2 = (randu(10, theta1.n_rows + 1) * 2 - 1) * epsilon;
 
     // Convert the column vector of y labels to a matrix where each
@@ -29,10 +32,43 @@ neural_net::neural_net(const mnist& input_, elem_t lambda_)
         idx++;
     });
 
+    // Allocate space for each layer of activations. Add an additional column
+    // for the bias neuron
     a1 = ones(input.images.n_rows, input.images.n_cols + 1);
-    no_bias(a1) = input.images;
     a2 = ones(input.images.n_rows, theta1.n_rows + 1);
     a3 = ones(input.images.n_rows, theta2.n_rows + 1);
+
+    // Load the images onto first activation layer, but do not overwrite the
+    // bias neuron
+    no_bias(a1) = input.images;
+
+    //shuffle_a1_yy();
+}
+
+void neural_net::shuffle_a1_yy() {
+    using std::iota;
+    using std::vector;
+    using std::shuffle;
+    using std::begin;
+    using std::end;
+
+    vector<size_t> indices(a1.n_rows);
+    iota(begin(indices), end(indices), 0);
+
+    auto rng = std::default_random_engine {};
+    shuffle(begin(indices), end(indices), rng);
+
+    mat_t a1_shfl(a1.n_rows, a1.n_cols);
+    mat_t yy_shfl(yy.n_rows, yy.n_cols);
+
+    for (size_t dst_idx = 0; dst_idx < indices.size(); ++dst_idx) {
+        size_t src_idx = indices[dst_idx];
+        a1_shfl.row(dst_idx) = a1.row(src_idx);
+        yy_shfl.row(dst_idx) = yy.row(src_idx);
+    }
+
+    a1 = a1_shfl;
+    yy = yy_shfl;
 }
 
 void neural_net::save() const {
@@ -42,8 +78,8 @@ void neural_net::save() const {
     theta2.save(theta2_fn);
 }
 
-void neural_net::feed_forward() {
-    // Pass input thru weights to second layer
+void neural_net::feed_forward() const {
+    // Pass input thru weights to second layer, do not disturb the bias neuron
     no_bias(a2) = a1 * theta1.t();
     sigmoid(no_bias(a2));
 
@@ -91,22 +127,15 @@ void neural_net::gradient() {
     // Delta from output layer to hidden layer without bias
     d_theta1 = (no_bias(delta2).t() * a1) / m;
 
-    // TODO: Regularization
-    // if (std::abs(lambda) > 0) {
-    //     // Operate on subviews so as to not disturb the weights that connect
-    //     // to the bias neuron
-    //     subview_t theta1_nb = no_bias(theta1);
-    //     subview_t theta2_nb = no_bias(theta2);
-    //     subview_t grad1_sv = no_bias(d_theta1);
-    //     subview_t grad2_sv = no_bias(d_theta2);
-    //
-    //     grad1_sv = grad1_sv + theta1_nb * (lambda / m);
-    //     grad2_sv = grad2_sv + theta2_nb * (lambda / m);
-    // }
+    // Regularization
+    if (std::abs(lambda) > 0) {
+        no_bias(d_theta1) += (lambda / m) * no_bias(theta1);
+        no_bias(d_theta2) += (lambda / m) * no_bias(theta2);
+    }
 }
 
 // Predict the label for each image
-void neural_net::predict() {
+neural_net::elem_t neural_net::predict() const {
     feed_forward();
 
     // Find neuron with maximum confidence, this is our predicted label
@@ -114,25 +143,17 @@ void neural_net::predict() {
     predictions = predictions + 1;
 
     // Display percentage of correct labels
-    elem_t percentage = elem_t(sum(predictions == input.labels)) / input.labels.n_rows;
-    std::cout << "precentage correct: " << percentage << std::endl;
+    return elem_t(sum(predictions == input.labels)) / input.labels.n_rows;
 }
 
-void neural_net::train(size_t max_itr) {
-
+void neural_net::train(size_t max_itr,
+  std::function<void(size_t, size_t)> progress) {
     for (size_t i = 0; i < max_itr; i++) {
         feed_forward();
         // Back prop
         gradient();
         theta1 -= d_theta1;
         theta2 -= d_theta2;
-        // Cost
-        if (i == 0 || i % 100 == 0 || i == max_itr - 1) {
-            std::cout << "\r " << i << " j = " << cost() << std::flush;
-        }
+        progress(i, max_itr);
     }
-    std::cout << std::endl;
-
-    weight_png("theta1.png", theta1, 28, 28, 2, 2);
-    weight_png("theta2.png", theta2, 5, 5, 2, 2);
 }
