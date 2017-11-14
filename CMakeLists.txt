@@ -29,8 +29,8 @@ find_library(PNGWRITER_LIB pngwriter
 set(SOURCE_FILES
   main.cpp
   util.cpp
-  neural_net.cpp
-  mnist.cpp
+  # neural_net.cpp
+  # mnist.cpp
 )
 
 set(HEADER_FILES
