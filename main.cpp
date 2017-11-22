@@ -21,11 +21,12 @@ void run() {
     auto train_net = neural_net<elem_t>(train_data, 0.1);
 
     // Train the neural net. Pass in a lambda to display progress
-    train_net.train(1000, [&](size_t i, size_t max_itr) -> void {
+    train_net.train(200, [&](size_t i, size_t max_itr) -> void {
         // Display progress
-        if (i == 0 || i % 100 == 0 || i == max_itr - 1) {
-            std::cout << "\r " << i << " j = " << train_net.cost()
-                      << std::flush;
+        if (i == 0 || i % 20 == 0 || i == max_itr - 1) {
+            std::cout << i << " cost function = " << train_net.cost()
+                      << ", percent correct: " << train_net.predict()
+                      << std::endl;
         }
     });
 

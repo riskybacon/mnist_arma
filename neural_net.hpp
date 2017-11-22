@@ -69,14 +69,12 @@ struct neural_net {
 
         // Convert the column vector of y labels to a matrix where each
         // row has a 1 in the column specified by the label.
-        yy.resize(input.labels.n_rows, 11);
-        int idx = 0;
+        yy = zeros<mat_t>(input.labels.n_rows, 11);
+        int row = 0;
         input.labels.for_each([&](const elem_t& element) {
-            rowvec label = zeros<rowvec>(11);
-            label[element] = 1.0;
-            label[0] = 1.0;
-            yy.row(idx) = label;
-            idx++;
+            yy(row, element) = 1.0;
+            yy(row, 0) = 1.0;
+            row++;
         });
 
         // Allocate space for each layer of activations. Add an additional
