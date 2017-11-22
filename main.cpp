@@ -36,7 +36,7 @@ void run() {
     test_net.theta1 = train_net.theta1;
     test_net.theta2 = train_net.theta2;
 
-    auto percentage = train_net.predict();
+    auto percentage = test_net.predict();
 
     std::cout << "percentage correct: " << percentage << std::endl;
 
